@@ -1,4 +1,4 @@
-# End-to-End Data Engineering Project
+# End-to-End Big Data Engineering Project
 
 ### Data Pipeline & Lakehouse Architecture with Docker, MySQL, Apache Spark, Hive & Apache Iceberg
 
