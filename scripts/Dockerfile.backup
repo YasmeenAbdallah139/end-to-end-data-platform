@@ -1,0 +1,9 @@
+FROM alpine:3.20
+
+RUN apk add --no-cache bash dcron docker-cli
+
+COPY backup.crontab /etc/crontabs/root
+
+RUN touch /var/log/backup.log
+
+CMD ["crond", "-f", "-l", "2"]

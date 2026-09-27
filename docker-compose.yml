@@ -1,0 +1,198 @@
+version: "3.8"
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: source_db
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./backups:/backups
+    networks:
+      - bigdata_net
+    healthcheck:
+      test:
+        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  backup:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.backup
+    container_name: mysql_backup
+    restart: always
+    init: true
+    depends_on:
+      - mysql
+    volumes:
+      - ./scripts:/scripts
+      - ./backups:/backups
+      - /var/run/docker.sock:/var/run/docker.sock
+  mysql_restore:
+    image: mysql:8.0
+    container_name: mysql_restore
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_restore_data:/var/lib/mysql
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: unless-stopped
+    environment:
+      - CLUSTER_NAME=bigdata-cluster
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9870:9870"
+      - "8020:8020"
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+    networks:
+      - bigdata_net
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    restart: unless-stopped
+    depends_on:
+      - namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:8020
+      - SERVICE_PRECONDITION=namenode:9870
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9864:9864"
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+    networks:
+      - bigdata_net
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    restart: unless-stopped
+    volumes:
+      - hive_metastore_pg_data:/var/lib/postgresql/data
+    networks:
+      - bigdata_net
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    restart: unless-stopped
+    depends_on:
+      - hive-metastore-postgresql
+      - namenode
+      - datanode
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "hive-metastore-postgresql:5432 namenode:9870 datanode:9864"
+    command: /opt/hive/bin/hive --service metastore
+    ports:
+      - "9083:9083"
+    networks:
+      - bigdata_net
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    restart: unless-stopped
+    depends_on:
+      - hive-metastore
+    env_file:
+      - ./hadoop.env
+    environment:
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+      HIVE_SITE_CONF_hive_metastore_uris: "thrift://hive-metastore:9083"
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    networks:
+      - bigdata_net
+
+  spark-master:
+    image: mohamedhamed13/spark:3.5.0
+    container_name: spark-master
+    restart: unless-stopped
+    user: root
+    depends_on:
+      - hive-metastore
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - ./spark/jobs:/opt/spark-jobs
+      - ./spark/conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ./spark/conf/hive-site.xml:/opt/bitnami/spark/conf/hive-site.xml
+      - spark_ivy_cache:/opt/bitnami/spark/.ivy2
+    networks:
+      - bigdata_net
+
+  spark-worker:
+    image: mohamedhamed13/spark:3.5.0
+    container_name: spark-worker
+    user: root
+    restart: unless-stopped
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2G
+    volumes:
+      - ./spark/jobs:/opt/spark-jobs
+      - ./spark/conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+      - ./spark/conf/hive-site.xml:/opt/bitnami/spark/conf/hive-site.xml
+      - spark_ivy_cache:/opt/bitnami/spark/.ivy2
+    networks:
+      - bigdata_net
+
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: jupyter
+    restart: unless-stopped
+    depends_on:
+      - spark-master
+      - hive-metastore
+    command: start-notebook.sh --NotebookApp.token='' --NotebookApp.password=''
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=devtoken
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./spark/conf/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
+      - ./spark/conf/hive-site.xml:/usr/local/spark/conf/hive-site.xml
+    networks:
+      - bigdata_net
+
+networks:
+  bigdata_net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  mysql_restore_data:
+  namenode_data:
+  datanode_data:
+  hive_metastore_pg_data:
+  spark_ivy_cache:
