@@ -1,6 +1,6 @@
-# Technical Challenge
+# End-to-End Data Engineering Project
 
-### End-to-End Data Pipeline using Docker, MySQL, Apache Spark, Hive & Apache Iceberg
+### Data Pipeline & Lakehouse Architecture with Docker, MySQL, Apache Spark, Hive & Apache Iceberg
 
 <p align="center">
 
@@ -93,11 +93,11 @@ Enterprise-HR-Analytics/
 
 # Implementation
 
-This section describes the implementation of each task required in the technical assessment.
+This section describes the implementation of the main components of the data engineering project.
 
 ---
 
-# Task 1 – Create MySQL Database
+# 1– Create MySQL Database
 
 ## Objective
 
@@ -202,7 +202,7 @@ This query serves as the baseline before adding indexes during **Task 10**.
 
 ---
 
-# Task 2 – Transfer Data to Big Data Environment
+# 2– Transfer Data to Big Data Environment
 
 ## Objective
 
@@ -264,7 +264,7 @@ Using Parquet at this stage provides:
 
 ---
 
-# Task 3 – Process Data with Spark
+# 3– Process Data with Spark
 
 ## Objective
 
@@ -399,7 +399,7 @@ Files in warhouse folder
 The db called hr_dw were created to contain the hive external tables
 ![Architecture](images/hivetables.jpg)
 
-# Task 4 – Run SQL Query Against Hive Table
+# 4– Run SQL Query Against Hive Table
 
 ## Objective
 
@@ -467,7 +467,7 @@ Partition pruning is one of the primary optimization techniques provided by Hive
 
 ---
 
-# Task 5 – Apache Iceberg
+# 5– Apache Iceberg
 
 ## Objective
 
@@ -631,7 +631,7 @@ The comparison demonstrates how different storage technologies optimize analytic
 - **Hive** reduces scan cost using **partition pruning**.
 - **Apache Iceberg** further optimizes analytical queries through **metadata and file pruning**, making it well suited for large-scale data lake environments.
 
-# Task 6 – Automate Daily Backups
+# 6– Automate Daily Backups
 
 ## Objective
 
@@ -692,7 +692,7 @@ To verify that the generated backup was valid, it was restored into a **separate
 
 ![Architecture](images/e.jpg)
 
-# Task 7 – Test Restore
+# 7– Test Restore
 
 ## Objective
 
@@ -737,7 +737,7 @@ The restored database contained the same number of records as the source databas
 
 ---
 
-# Task 8 – Monitor Database Server Resources
+# 8– Monitor Database Server Resources
 
 ## Objective
 
@@ -778,7 +778,7 @@ This provides a simple auditing mechanism for high-risk database operations.
 
 ---
 
-# Task 9 – Access Control
+# 9– Access Control
 
 ## Objective
 
@@ -843,7 +843,7 @@ admin
 read only user
 ![Architecture](images/readonly.jpg)
 
-# Task 10 – Performance Tuning
+# 10– Performance Tuning
 
 ## Objective
 
@@ -926,60 +926,6 @@ The execution plans clearly demonstrate the benefit of indexing for frequently f
 
 The performance tuning process showed how MySQL query performance can be significantly improved by replacing full table scans with indexed lookups. Proper indexing reduces I/O, lowers execution cost, and enables the optimizer to retrieve matching records more efficiently.
 
-# Written Questions
-
-## Q1. You have 500,000 small files landing in HDFS. What is the problem, and how would you solve it?
-
-### Problem
-
-Having a very large number of small files in HDFS leads to the **Small Files Problem**.
-
-Each file consumes metadata in the NameNode memory, regardless of its size. As the number of files increases, the NameNode requires more memory to manage the filesystem metadata, which can degrade cluster performance.
-
-In addition, Spark and Hive must open and read each file individually, increasing scheduling overhead and reducing query performance.
-
-### Solution
-
-Several approaches can be used to mitigate the small files problem:
-
-- Merge small files into larger Parquet files.
-- Configure Spark to write fewer output files (e.g., using `repartition()` or `coalesce()`).
-- Store data using columnar formats such as Parquet.
-- Use Apache Iceberg, which manages data files more efficiently and supports file compaction.
-
-These techniques reduce metadata overhead and improve analytical query performance.
-
----
-
-## Q2. If the data volume grew 100×, what would you change in your pipeline, storage format, and cluster design?
-
-If the dataset increased by a factor of 100, several improvements would be required.
-
-### Pipeline
-
-- Increase Spark parallelism.
-- Tune partition sizes.
-- Process data incrementally instead of performing full loads.
-- Introduce workflow orchestration (like Apache Airflow) for scheduling.
-
-### Storage
-
-- Continue using Apache Parquet for columnar storage.
-- Prefer Apache Iceberg for managing very large datasets because of:
-  - ACID transactions
-  - Schema evolution
-  - Hidden partitioning
-  - Metadata and file pruning
-  - Snapshot management
-
-### Cluster Design
-
-- Scale the Hadoop cluster by adding additional DataNodes.
-- Increase executor memory and CPU resources for Spark.
-- Configure replication and storage capacity based on expected workload.
-- Deploy the services on multiple machines instead of a single-node environment.
-
----
 
 # Docker Deployment
 
@@ -1003,9 +949,7 @@ All services communicate through the Docker network, making the environment repr
 
 ---
 
-# Results
 
-The project successfully implemented all required tasks of the technical assessment.
 
 ## Achievements
 
